@@ -1,6 +1,6 @@
 # EthVault -- Lab01
 
-## 📝 專案描述
+## 專案描述
 
 EthVault 是一個使用 Solidity 編寫的 ETH 保險庫智能合約。
 
@@ -9,7 +9,7 @@ EthVault 是一個使用 Solidity 編寫的 ETH 保險庫智能合約。
 
 ---
 
-## 🛠️ 技術規格
+## 技術規格
 
 | 項目 | 說明 |
 |------|------|
@@ -19,7 +19,7 @@ EthVault 是一個使用 Solidity 編寫的 ETH 保險庫智能合約。
 
 ---
 
-## 📁 專案結構
+## 專案結構
 
 ```
 lab01/
@@ -33,7 +33,7 @@ lab01/
 
 ---
 
-## 🚀 安裝與執行
+## 安裝與執行
 
 ### 下載專案
 
@@ -60,7 +60,7 @@ forge test --gas-report
 
 ---
 
-## ✅ 測試覆蓋詳情
+## 測試覆蓋詳情
 
 共 **16 個測試**，分為 5 個群組：
 
@@ -124,21 +124,3 @@ forge test --gas-report
 | # | 測試名稱 | 說明 |
 |---|----------|------|
 | 16 | `test_ReentrancyGuardBlocksAttack` | 惡意合約嘗試重入攻擊被阻擋，拋出 Reentrancy 錯誤，餘額只減少一次 |
-
----
-
-## 🎁 Bonus 實作
-
-| 項目 | 狀態 |
-|------|------|
-| 重入保護 (Reentrancy protection) | ✅ 已實作 |
-| 自定義錯誤 (Custom errors) | ✅ 已實作 |
-| Gas 優化 (Gas optimizations) | ✅ 已實作 |
-| NatSpec 註解 (NatSpec comments) | ✅ 已實作 |
-| ≥90% 測試覆蓋率 (Test coverage) | ✅ 已實作 |
-
----
-
-## 📄 授權
-
-MIT License
