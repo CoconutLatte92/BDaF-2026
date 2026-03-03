@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
+// 聲明授權類型為 MIT
+
 pragma solidity ^0.8.20;
+// 指定 Solidity 編譯器版本
 
 // 導入 Foundry 測試框架
-// Test 是 Foundry 的基礎測試合約
+// Test 合約提供測試用的斷言函式（如 assertEq）和作弊碼（如 vm.prank）
 import {Test} from "forge-std/Test.sol";
 
 // 導入要測試的合約
@@ -10,430 +13,504 @@ import {EthVault} from "../src/EthVault.sol";
 
 /// @title EthVault 測試合約
 /// @notice 測試 EthVault 的所有功能
-/// @dev 繼承 Test 合約以獲得測試功能
 contract EthVaultTest is Test {
     
     // ============ 狀態變數 ============
     
-    /// @notice 被測試的 EthVault 合約實例
-    EthVault public vault;
+    // 被測試的 EthVault 合約實例
+    // internal = 只有這個合約和繼承它的合約可以存取
+    EthVault internal vault;
     
-    /// @notice 模擬的 owner 地址
-    /// @dev 使用 makeAddr() 創建一個有標籤的地址，方便調試
-    address public owner;
+    // 模擬的 owner 地址
+    address internal owner;
     
-    /// @notice 模擬的普通用戶地址
-    address public user1;
+    // 模擬的普通用戶地址
+    address internal user1;
     
-    /// @notice 另一個模擬用戶地址
-    address public user2;
+    // 另一個模擬用戶地址
+    address internal user2;
 
     // ============ 事件定義 ============
+    // 需要在測試合約中重新定義事件，才能使用 emit 測試
     
-    // 需要在測試合約中再定義事件，才能測試
     event Deposit(address indexed sender, uint256 amount);
     event Weethdraw(address indexed to, uint256 amount);
     event UnauthorizedWithdrawAttempt(address indexed caller, uint256 amount);
 
-    // ============ 設置function ============
+    // ============ 設置函式 ============
     
-    /// @notice 每個測試function執行前都會調用此設置function
-    /// @dev setUp 是 Foundry 的特殊function名，會自動執行
+    /// @notice 每個測試函式執行前都會自動調用此設置函式
+    /// @dev setUp 是 Foundry 的特殊函式名，會在每個 test_ 函式前執行
     function setUp() public {
-        // 創建測試用地址
-        // makeAddr() 是 Foundry 提供的輔助function，創建帶標籤的地址
+        // makeAddr("標籤") 創建一個帶標籤的測試地址
+        // 標籤在 debug 時會顯示，方便識別
         owner = makeAddr("owner");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
         
-        // 給測試地址一些 ETH
-        // vm.deal() 是 Foundry 提供的輔助function，可以直接設定地址的 ETH 餘額
+        // vm.deal(地址, 金額) 是 Foundry 的「作弊碼」
+        // 直接設定該地址的 ETH 餘額，不需要真的轉帳
+        // 1 ether = 1e18 wei = 1,000,000,000,000,000,000 wei
         vm.deal(owner, 100 ether);
         vm.deal(user1, 100 ether);
         vm.deal(user2, 100 ether);
         
-        // 以 owner 身份部署合約
-        // vm.prank() 讓下一個調用以指定地址身份執行
-        // 這樣就能設定合約的 owner 就會是 owner 地址，而不是測試合約地址
+        // vm.prank(地址) 讓「下一行」程式碼以該地址身份執行
+        // 這樣部署出來的合約，OWNER 就會是 owner 地址
         vm.prank(owner);
+        
+        // new EthVault() 部署一個新的 EthVault 合約
+        // 因為上一行用了 vm.prank(owner)，所以 msg.sender = owner
         vault = new EthVault();
     }
 
+    // ============ Extra 函式 ============
+    // Extra 函式用來簡化重複的程式碼
+    // 以底線 _ 開頭表示是內部使用的輔助函式
+    
+    /// @dev 執行存款的輔助函式
+    /// @param from 存款人地址
+    /// @param amount 存款金額（wei）
+    function _deposit(address from, uint256 amount) internal {
+        // 以 from 地址身份執行下一行
+        vm.prank(from);
+        
+        // 使用低階 call 發送 ETH 到 vault 合約
+        // address(vault) = vault 合約的地址
+        // {value: amount} = 發送 amount wei
+        // ("") = 不帶任何呼叫資料（會觸發 receive 或 fallback）
+        // 回傳 (bool 是否成功, bytes 回傳資料)
+        (bool ok, ) = address(vault).call{value: amount}("");
+        
+        // assertTrue(條件) 確認條件為 true，否則測試失敗
+        assertTrue(ok);
+    }
+    
+    /// @dev 預期會發出 Deposit 事件的輔助函式
+    /// @param from 預期的存款人地址
+    /// @param amount 預期的存款金額
+    function _expectDeposit(address from, uint256 amount) internal {
+        // vm.expectEmit(checkTopic1, checkTopic2, checkTopic3, checkData)
+        // 設定「下一個呼叫」應該發出的事件
+        // true = 要檢查這個欄位
+        vm.expectEmit(true, true, false, true);
+        
+        // 發出預期的事件內容（使用測試合約中定義的事件）
+        emit Deposit(from, amount);
+    }
+    
+    /// @dev 預期會發出 Weethdraw 事件的輔助函式
+    /// @param to 預期的收款人地址
+    /// @param amount 預期的提款金額
+    function _expectWithdraw(address to, uint256 amount) internal {
+        vm.expectEmit(true, true, false, true);
+        emit Weethdraw(to, amount);
+    }
+    
+    /// @dev 預期會發出 UnauthorizedWithdrawAttempt 事件的輔助函式
+    /// @param caller 預期的呼叫者地址
+    /// @param amount 預期的嘗試提款金額
+    function _expectUnauthorized(address caller, uint256 amount) internal {
+        vm.expectEmit(true, true, false, true);
+        emit UnauthorizedWithdrawAttempt(caller, amount);
+    }
+
     // ============ Test Group A: 存款測試 ============
+    // 測試作業要求的存款功能
     
     /// @notice 測試：單次存款應該成功
     function test_SingleDeposit() public {
-        // 記錄存款金額
-        uint256 depositAmount = 1 ether;
+        // ===== Arrange（準備）=====
+        // 設定測試所需的變數和初始狀態
         
-        // 預期會發出 Deposit 事件
-        // vm.expectEmit() 設定期望的事件
-        // 參數說明：(checkTopic1, checkTopic2, checkTopic3, checkData)
-        // true 表示要檢查該項目
-        vm.expectEmit(true, true, false, true);
+        uint256 amount = 1 ether;  // 要存入的金額
+        uint256 vaultBefore = address(vault).balance;  // 記錄存款前的合約餘額
         
-        // 發出預期的事件（必須在實際調用前）
-        emit Deposit(user1, depositAmount);
+        // ===== Expect（預期）=====
+        // 設定預期會發生的事件
         
-        // 以 user1 身份發送 ETH 到合約
-        // vm.prank() 只影響下一個調用
-        vm.prank(user1);
+        _expectDeposit(user1, amount);  // 預期會發出 Deposit 事件
         
-        // 使用低階 call 發送 ETH
-        // 這會觸發合約的 receive() function
-        (bool success,) = address(vault).call{value: depositAmount}("");
+        // ===== Act（執行）=====
+        // 執行要測試的動作
         
-        // 確認發送成功
-        assertTrue(success, "ETH transfer should succeed");
+        _deposit(user1, amount);  // user1 存入 1 ETH
         
-        // 確認合約餘額正確
-        assertEq(address(vault).balance, depositAmount, "Contract balance should equal deposit amount");
+        // ===== Assert（驗證）=====
+        // 驗證結果是否符合預期
+        
+        // assertEq(實際值, 預期值) 確認兩個值相等
+        // 合約餘額應該增加 amount
+        assertEq(address(vault).balance, vaultBefore + amount);
     }
     
     /// @notice 測試：多次存款應該累加
     function test_MultipleDeposits() public {
+        // ===== Arrange =====
         uint256 deposit1 = 1 ether;
         uint256 deposit2 = 2 ether;
         uint256 deposit3 = 0.5 ether;
+        uint256 vaultBefore = address(vault).balance;
         
-        // 第一次存款
-        vm.prank(user1);
-        (bool success1,) = address(vault).call{value: deposit1}("");
-        assertTrue(success1);
+        // ===== Act =====
+        // 連續存款三次
+        _deposit(user1, deposit1);
+        _deposit(user1, deposit2);
+        _deposit(user1, deposit3);
         
-        // 第二次存款
-        vm.prank(user1);
-        (bool success2,) = address(vault).call{value: deposit2}("");
-        assertTrue(success2);
-        
-        // 第三次存款
-        vm.prank(user1);
-        (bool success3,) = address(vault).call{value: deposit3}("");
-        assertTrue(success3);
-        
-        // 確認總餘額正確
+        // ===== Assert =====
+        // 總餘額應該等於三次存款的總和
         uint256 expectedBalance = deposit1 + deposit2 + deposit3;
-        assertEq(address(vault).balance, expectedBalance, "Balance should equal sum of all deposits");
+        assertEq(address(vault).balance, vaultBefore + expectedBalance);
     }
     
     /// @notice 測試：不同發送者的存款
     function test_DepositsFromDifferentSenders() public {
+        // ===== Arrange =====
         uint256 deposit1 = 1 ether;
         uint256 deposit2 = 2 ether;
+        uint256 vaultBefore = address(vault).balance;
         
-        // user1 存款
-        vm.expectEmit(true, true, false, true);
-        emit Deposit(user1, deposit1);
-        vm.prank(user1);
-        (bool success1,) = address(vault).call{value: deposit1}("");
-        assertTrue(success1);
+        // ===== Expect + Act (user1) =====
+        _expectDeposit(user1, deposit1);  // 預期 user1 的存款事件
+        _deposit(user1, deposit1);         // user1 存款
         
-        // user2 存款
-        vm.expectEmit(true, true, false, true);
-        emit Deposit(user2, deposit2);
-        vm.prank(user2);
-        (bool success2,) = address(vault).call{value: deposit2}("");
-        assertTrue(success2);
+        // ===== Expect + Act (user2) =====
+        _expectDeposit(user2, deposit2);  // 預期 user2 的存款事件
+        _deposit(user2, deposit2);         // user2 存款
         
-        // 確認總餘額
-        assertEq(address(vault).balance, deposit1 + deposit2);
+        // ===== Assert =====
+        // 不管誰存的，總餘額應該正確累加
+        assertEq(address(vault).balance, vaultBefore + deposit1 + deposit2);
     }
     
     /// @notice 測試：存入 0 ETH
     function test_DepositZero() public {
-        // 存入 0 ETH 也應該成功並發出事件
-        vm.expectEmit(true, true, false, true);
-        emit Deposit(user1, 0);
+        // ===== Arrange =====
+        uint256 vaultBefore = address(vault).balance;
         
-        vm.prank(user1);
-        (bool success,) = address(vault).call{value: 0}("");
-        assertTrue(success);
+        // ===== Expect =====
+        // 即使存 0 ETH，也應該發出 Deposit 事件
+        _expectDeposit(user1, 0);
         
-        assertEq(address(vault).balance, 0);
+        // ===== Act =====
+        _deposit(user1, 0);
+        
+        // ===== Assert =====
+        // 餘額應該不變
+        assertEq(address(vault).balance, vaultBefore);
     }
 
     // ============ Test Group B: Owner 提款測試 ============
+    // 測試作業要求的 Owner 提款功能
     
     /// @notice 測試：Owner 可以提取部分餘額
     function test_OwnerPartialWithdraw() public {
-        // 先存入一些 ETH
+        // ===== Arrange =====
         uint256 depositAmount = 10 ether;
-        vm.prank(user1);
-        (bool depositSuccess,) = address(vault).call{value: depositAmount}("");
-        assertTrue(depositSuccess);
-        
-        // Owner 提取部分
         uint256 withdrawAmount = 3 ether;
         
-        // 記錄 owner 提款前的餘額
-        uint256 ownerBalanceBefore = owner.balance;
+        // 先存入一些 ETH
+        _deposit(user1, depositAmount);
         
-        // 預期發出 Weethdraw 事件
-        vm.expectEmit(true, true, false, true);
-        emit Weethdraw(owner, withdrawAmount);
+        // 記錄提款前的餘額
+        uint256 ownerBefore = owner.balance;      // owner 的 ETH 餘額
+        uint256 vaultBefore = address(vault).balance;  // 合約的 ETH 餘額
         
-        // Owner 執行提款
-        vm.prank(owner);
-        vault.withdraw(withdrawAmount);
+        // ===== Expect =====
+        _expectWithdraw(owner, withdrawAmount);  // 預期會發出 Weethdraw 事件
         
-        // 確認合約餘額減少
-        assertEq(address(vault).balance, depositAmount - withdrawAmount, "Contract balance should decrease");
+        // ===== Act =====
+        vm.prank(owner);  // 以 owner 身份執行
+        vault.withdraw(withdrawAmount);  // 提取 3 ETH
         
-        // 確認 owner 餘額增加
-        assertEq(owner.balance, ownerBalanceBefore + withdrawAmount, "Owner balance should increase");
+        // ===== Assert =====
+        // 合約餘額應該減少
+        assertEq(address(vault).balance, vaultBefore - withdrawAmount);
+        // owner 餘額應該增加
+        assertEq(owner.balance, ownerBefore + withdrawAmount);
     }
     
     /// @notice 測試：Owner 可以提取全部餘額
     function test_OwnerFullWithdraw() public {
-        // 存入 ETH
+        // ===== Arrange =====
         uint256 depositAmount = 5 ether;
-        vm.prank(user1);
-        (bool success,) = address(vault).call{value: depositAmount}("");
-        assertTrue(success);
+        _deposit(user1, depositAmount);
         
-        // 記錄 owner 初始餘額
-        uint256 ownerBalanceBefore = owner.balance;
+        uint256 ownerBefore = owner.balance;
+        uint256 vaultBefore = address(vault).balance;
         
-        // Owner 提取全部
+        // ===== Expect =====
+        _expectWithdraw(owner, vaultBefore);  // 提取全部
+        
+        // ===== Act =====
         vm.prank(owner);
-        vault.withdraw(depositAmount);
+        vault.withdraw(vaultBefore);
         
-        // 確認合約餘額為 0
-        assertEq(address(vault).balance, 0, "Contract should be empty");
-        
-        // 確認 owner 收到所有 ETH
-        assertEq(owner.balance, ownerBalanceBefore + depositAmount);
+        // ===== Assert =====
+        assertEq(address(vault).balance, 0);  // 合約應該清空
+        assertEq(owner.balance, ownerBefore + vaultBefore);  // owner 收到全部
     }
     
     /// @notice 測試：多次存款後 Owner 提款
     function test_WithdrawAfterMultipleDeposits() public {
-        // 多次存款
-        vm.prank(user1);
-        (bool s1,) = address(vault).call{value: 1 ether}("");
-        vm.prank(user2);
-        (bool s2,) = address(vault).call{value: 2 ether}("");
-        vm.prank(user1);
-        (bool s3,) = address(vault).call{value: 1.5 ether}("");
+        // ===== Arrange =====
+        // 多人多次存款
+        _deposit(user1, 1 ether);
+        _deposit(user2, 2 ether);
+        _deposit(user1, 1.5 ether);
+        // 總共 4.5 ETH
         
-        assertTrue(s1 && s2 && s3);
+        uint256 withdrawAmount = 2 ether;
+        uint256 ownerBefore = owner.balance;
+        uint256 vaultBefore = address(vault).balance;
         
-        uint256 totalDeposited = 4.5 ether;
-        assertEq(address(vault).balance, totalDeposited);
+        // ===== Expect =====
+        _expectWithdraw(owner, withdrawAmount);
         
-        // Owner 提款
-        uint256 ownerBalanceBefore = owner.balance;
+        // ===== Act =====
         vm.prank(owner);
-        vault.withdraw(2 ether);
+        vault.withdraw(withdrawAmount);
         
-        assertEq(address(vault).balance, 2.5 ether);
-        assertEq(owner.balance, ownerBalanceBefore + 2 ether);
+        // ===== Assert =====
+        assertEq(address(vault).balance, vaultBefore - withdrawAmount);
+        assertEq(owner.balance, ownerBefore + withdrawAmount);
     }
 
     // ============ Test Group C: 未授權提款測試 ============
+    // 測試非 Owner 嘗試提款時的行為
     
     /// @notice 測試：非 Owner 無法提款（不會 revert，但資金不會轉移）
     function test_UnauthorizedWithdrawDoesNotTransfer() public {
-        // 先存入 ETH
+        // ===== Arrange =====
+        uint256 depositAmount = 5 ether;
+        _deposit(user1, depositAmount);
+        
+        // 記錄提款前的餘額
+        uint256 user1Before = user1.balance;
+        uint256 vaultBefore = address(vault).balance;
+        
+        // ===== Expect =====
+        // 預期會發出 UnauthorizedWithdrawAttempt 事件
+        _expectUnauthorized(user1, 1 ether);
+        
+        // ===== Act =====
+        // user1 不是 owner，嘗試提款
         vm.prank(user1);
-        (bool success,) = address(vault).call{value: 5 ether}("");
-        assertTrue(success);
+        vault.withdraw(1 ether);  // 這不會 revert，但也不會轉帳
         
-        // 記錄合約餘額和 user1 餘額
-        uint256 vaultBalanceBefore = address(vault).balance;
-        uint256 user1BalanceBefore = user1.balance;
-        
-        // 預期發出 UnauthorizedWithdrawAttempt 事件
-        vm.expectEmit(true, true, false, true);
-        emit UnauthorizedWithdrawAttempt(user1, 1 ether);
-        
-        // 非 owner 嘗試提款（不會 revert，只是不轉帳）
-        vm.prank(user1);
-        vault.withdraw(1 ether);
-        
-        // 確認合約餘額未改變
-        assertEq(address(vault).balance, vaultBalanceBefore, "Vault balance should not change");
-        
-        // 確認 user1 餘額未改變
-        assertEq(user1.balance, user1BalanceBefore, "User balance should not change");
+        // ===== Assert =====
+        // 合約餘額應該不變
+        assertEq(address(vault).balance, vaultBefore);
+        // user1 餘額也應該不變
+        assertEq(user1.balance, user1Before);
     }
     
     /// @notice 測試：非 Owner 提款交易成功但不轉移資金
     function test_UnauthorizedWithdrawNoTransfer() public {
-        // 存入 ETH
+        // ===== Arrange =====
         uint256 depositAmount = 10 ether;
-        vm.prank(user1);
-        (bool success,) = address(vault).call{value: depositAmount}("");
-        assertTrue(success);
+        _deposit(user1, depositAmount);
         
-        // 記錄 user2 的餘額（user2 將嘗試非法提款）
-        uint256 user2BalanceBefore = user2.balance;
-        uint256 vaultBalanceBefore = address(vault).balance;
+        // user2 將嘗試非法提款
+        uint256 user2Before = user2.balance;
+        uint256 vaultBefore = address(vault).balance;
         
-        // 預期發出 UnauthorizedWithdrawAttempt 事件
-        vm.expectEmit(true, true, false, true);
-        emit UnauthorizedWithdrawAttempt(user2, 5 ether);
+        // ===== Expect =====
+        _expectUnauthorized(user2, 5 ether);
         
-        // user2 嘗試提款（交易會成功，但不轉帳）
-        vm.prank(user2);
+        // ===== Act =====
+        vm.prank(user2);  // user2 不是 owner
         vault.withdraw(5 ether);
         
-        // 確認沒有資金轉移
-        assertEq(user2.balance, user2BalanceBefore, "User2 balance should not change");
-        assertEq(address(vault).balance, vaultBalanceBefore, "Vault balance should not change");
+        // ===== Assert =====
+        // 沒有任何資金轉移
+        assertEq(user2.balance, user2Before);
+        assertEq(address(vault).balance, vaultBefore);
     }
 
     // ============ Test Group D: 邊界情況測試 ============
+    // 測試各種邊界情況
     
     /// @notice 測試：提款超過餘額應該 revert
     function test_WithdrawMoreThanBalance() public {
-        // 存入 1 ETH
-        vm.prank(user1);
-        (bool success,) = address(vault).call{value: 1 ether}("");
-        assertTrue(success);
+        // ===== Arrange =====
+        uint256 depositAmount = 1 ether;
+        _deposit(user1, depositAmount);
         
-        // Owner 嘗試提取 2 ETH（超過餘額）
-        // 預期 revert with InsufficientBalance error
+        uint256 requestAmount = 2 ether;  // 想提 2 ETH，但只有 1 ETH
+        
+        // ===== Expect =====
+        // vm.expectRevert() 預期下一個呼叫會 revert
+        // abi.encodeWithSelector() 編碼自定義錯誤和參數
         vm.expectRevert(
             abi.encodeWithSelector(
-                EthVault.InsufficientBalance.selector,
-                2 ether,    // requested
-                1 ether     // available
+                EthVault.InsufficientBalance.selector,  // 錯誤類型
+                requestAmount,  // 請求金額
+                depositAmount   // 實際餘額
             )
         );
         
+        // ===== Act =====
         vm.prank(owner);
-        vault.withdraw(2 ether);
+        vault.withdraw(requestAmount);  // 這會 revert
+        
+        // 注意：revert 後不需要 Assert，因為交易已經失敗
     }
     
     /// @notice 測試：提款 0 ETH
     function test_WithdrawZero() public {
-        // 存入一些 ETH
-        vm.prank(user1);
-        (bool success,) = address(vault).call{value: 1 ether}("");
-        assertTrue(success);
+        // ===== Arrange =====
+        uint256 depositAmount = 1 ether;
+        _deposit(user1, depositAmount);
         
-        uint256 balanceBefore = address(vault).balance;
-        uint256 ownerBalanceBefore = owner.balance;
+        uint256 vaultBefore = address(vault).balance;
+        uint256 ownerBefore = owner.balance;
         
-        // Owner 提款 0 ETH（應該成功）
-        vm.expectEmit(true, true, false, true);
-        emit Weethdraw(owner, 0);
+        // ===== Expect =====
+        // 提款 0 ETH 應該成功，並發出事件
+        _expectWithdraw(owner, 0);
         
+        // ===== Act =====
         vm.prank(owner);
         vault.withdraw(0);
         
-        // 餘額應該不變
-        assertEq(address(vault).balance, balanceBefore);
-        assertEq(owner.balance, ownerBalanceBefore);
+        // ===== Assert =====
+        // 餘額都不變
+        assertEq(address(vault).balance, vaultBefore);
+        assertEq(owner.balance, ownerBefore);
     }
     
     /// @notice 測試：從空合約提款應該 revert
     function test_WithdrawFromEmptyContract() public {
-        // 合約是空的，嘗試提款
+        // ===== Arrange =====
+        // 不存款，合約餘額為 0
+        uint256 requestAmount = 1 ether;
+        
+        // ===== Expect =====
         vm.expectRevert(
             abi.encodeWithSelector(
                 EthVault.InsufficientBalance.selector,
-                1 ether,
-                0
+                requestAmount,  // 想提 1 ETH
+                0               // 但餘額是 0
             )
         );
         
+        // ===== Act =====
         vm.prank(owner);
-        vault.withdraw(1 ether);
+        vault.withdraw(requestAmount);
     }
     
     /// @notice 測試：Owner 地址正確設定
     function test_OwnerIsSetCorrectly() public view {
-        // 確認 owner 是部署時指定的地址
-        assertEq(vault.OWNER(), owner, "Owner should be set correctly");
+        // view 函式不修改狀態，所以可以加 view 修飾符
+        
+        // ===== Assert =====
+        // vault.OWNER() 呼叫合約的 OWNER getter 函式
+        assertEq(vault.OWNER(), owner);
     }
     
     /// @notice 測試：透過 fallback 存款（帶 data）
     function test_DepositViaFallback() public {
-        // 發送帶有 data 的交易（觸發 fallback 而非 receive）
-        uint256 depositAmount = 1 ether;
+        // ===== Arrange =====
+        uint256 amount = 1 ether;
+        uint256 vaultBefore = address(vault).balance;
         
-        vm.expectEmit(true, true, false, true);
-        emit Deposit(user1, depositAmount);
+        // ===== Expect =====
+        _expectDeposit(user1, amount);
         
+        // ===== Act =====
         vm.prank(user1);
-        // 發送帶有任意 data 的交易
-        (bool success,) = address(vault).call{value: depositAmount}("some random data");
+        // 發送帶有 data 的交易，這會觸發 fallback() 而非 receive()
+        // "some random data" 是任意的 calldata
+        (bool success,) = address(vault).call{value: amount}("some random data");
         assertTrue(success);
         
-        assertEq(address(vault).balance, depositAmount);
+        // ===== Assert =====
+        assertEq(address(vault).balance, vaultBefore + amount);
     }
     
     /// @notice 測試：fallback 帶 data 但 0 ETH（不應發出 Deposit 事件）
     function test_FallbackWithZeroEth() public {
-        // 發送帶 data 但 0 ETH 的交易
-        // 因為 msg.value = 0，不應該發出 Deposit 事件
+        // ===== Arrange =====
+        uint256 vaultBefore = address(vault).balance;
         
+        // ===== Act =====
         vm.prank(user1);
+        // 發送 0 ETH 但帶有 data
+        // 根據合約邏輯，msg.value == 0 時不會發出 Deposit 事件
         (bool success,) = address(vault).call{value: 0}("some data");
         assertTrue(success);
         
-        // 餘額應該是 0
-        assertEq(address(vault).balance, 0);
+        // ===== Assert =====
+        // 餘額不變
+        assertEq(address(vault).balance, vaultBefore);
     }
 
     // ============ Test Group E: 重入攻擊測試 ============
+    // 測試 Bonus 的重入保護功能
     
     /// @notice 測試：重入攻擊應該被阻擋
-    /// @dev 創建一個惡意合約嘗試重入攻擊，驗證 nonReentrant 修飾符有效
     function test_ReentrancyGuardBlocksAttack() public {
-        // 創建惡意攻擊合約
+        // ===== Arrange =====
+        
+        // 創建一個惡意攻擊合約
         ReentrantAttacker attacker = new ReentrantAttacker();
         
-        // 以攻擊者身份部署一個新的 vault（攻擊者成為 owner）
+        // 以攻擊者身份部署一個新的 vault
+        // 這樣攻擊者就是這個 vault 的 owner
         vm.prank(address(attacker));
         EthVault attackerVault = new EthVault();
         
-        // 設定攻擊者要攻擊的 vault
+        // 告訴攻擊合約要攻擊哪個 vault
         attacker.setVault(attackerVault);
         
-        // 存入資金到 vault
+        // 存入資金到 vault（由 user1 存入）
         uint256 depositAmount = 5 ether;
         vm.deal(user1, 10 ether);
         vm.prank(user1);
         (bool depositSuccess,) = address(attackerVault).call{value: depositAmount}("");
         assertTrue(depositSuccess);
         
-        // 確認初始餘額
-        assertEq(address(attackerVault).balance, depositAmount);
-        
-        // 預期外層提款會成功並發出 Weethdraw 事件
+        // ===== Expect =====
+        // 第一次提款應該成功，發出 Weethdraw 事件
         vm.expectEmit(true, true, false, true, address(attackerVault));
         emit Weethdraw(address(attacker), 1 ether);
         
-        // 攻擊者執行提款（會在 receive 中嘗試重入）
+        // ===== Act =====
+        // 攻擊者執行提款
+        // 攻擊者的 receive() 會嘗試重入
         attacker.attack(1 ether);
         
-        // 驗證：攻擊者確實嘗試了重入
-        assertTrue(attacker.attemptedReentry(), "Attacker should have attempted reentry");
+        // ===== Assert =====
         
-        // 驗證：重入被阻擋，錯誤訊息正確
+        // 確認攻擊者確實嘗試了重入
+        assertTrue(attacker.attemptedReentry());
+        
+        // 確認重入被阻擋，收到 Reentrancy 錯誤
         bytes memory expectedError = abi.encodeWithSelector(EthVault.Reentrancy.selector);
-        assertEq(attacker.reentryError(), expectedError, "Should revert with Reentrancy error");
+        assertEq(attacker.reentryError(), expectedError);
         
-        // 驗證：vault 餘額只減少一次（1 ether），而不是被多次提款
-        assertEq(address(attackerVault).balance, depositAmount - 1 ether, "Only one withdrawal should succeed");
+        // 確認餘額只減少一次（重入沒有成功）
+        // 如果重入成功，餘額會減少更多
+        assertEq(address(attackerVault).balance, depositAmount - 1 ether);
     }
-
 }
 
+// ============ 惡意合約 ============
+
 /// @title ReentrantAttacker - 模擬重入攻擊的惡意合約
-/// @notice 用於測試 EthVault 的重入保護機制
-/// @dev 這個合約會在收到 ETH 時嘗試再次呼叫 withdraw
+/// @notice 這個合約用於測試 EthVault 的重入保護
+/// @dev 當收到 ETH 時，會嘗試再次呼叫 withdraw（重入攻擊）
 contract ReentrantAttacker {
     
-    /// @notice 要攻擊的 vault 合約
+    // 要攻擊的 vault 合約
     EthVault public vault;
     
-    /// @notice 是否已嘗試重入
+    // 是否已嘗試重入
     bool public attemptedReentry;
     
-    /// @notice 重入時收到的錯誤訊息
+    // 重入時收到的錯誤訊息
     bytes public reentryError;
     
     /// @notice 設定要攻擊的 vault
@@ -448,19 +525,21 @@ contract ReentrantAttacker {
         vault.withdraw(amount);
     }
     
-    /// @notice 接收 ETH 時嘗試重入攻擊
-    /// @dev 當 vault 轉帳給這個合約時，會觸發這個function
-    ///      我們在這裡嘗試再次呼叫 withdraw
+    /// @notice 接收 ETH 時自動觸發
+    /// @dev 這裡是重入攻擊的關鍵：
+    ///      當 vault 轉帳給這個合約時，會觸發 receive()
+    ///      我們在這裡嘗試再次呼叫 withdraw()
     receive() external payable {
         // 只嘗試一次重入，避免無限迴圈
         if (!attemptedReentry) {
             attemptedReentry = true;
             
-            // 嘗試重入攻擊
+            // try-catch 語法：嘗試執行，如果失敗則捕獲錯誤
             try vault.withdraw(1 wei) {
-                // 如果成功，表示重入保護失效
+                // 如果成功進入這裡，表示重入保護失效！
             } catch (bytes memory reason) {
-                // 記錄錯誤訊息
+                // 如果失敗，記錄錯誤訊息
+                // 預期會收到 Reentrancy() 錯誤
                 reentryError = reason;
             }
         }
