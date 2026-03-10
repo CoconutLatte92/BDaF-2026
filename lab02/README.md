@@ -47,9 +47,9 @@ ALICE_PRIVATE_KEY=0x你的Alice私鑰
 BOB_PRIVATE_KEY=0x你的Bob私鑰
 RPC_URL=https://garfield-testnet.zircuit.com
 
-ALPHA_TOKEN=0xD71F27AE438F0978f16459780704699d79FD0f51
-BETA_TOKEN=0x538AfE4E65183eAD18c103371c62dc4707Bf3311
-TRADE_CONTRACT=0xFD4424266C0d80F47D4f7486281f09f573A65F1E
+ALPHA_TOKEN=0xALPHA_TOKEN
+BETA_TOKEN=0xBETA_TOKEN
+TRADE_CONTRACT=0xTRADE_CONTRACT
 TRADE_ID=0
 ETHERSCAN_API_KEY="0"
 ```
@@ -218,56 +218,6 @@ forge script script/OwnerWithdrawFee.s.sol:OwnerWithdrawFee \
 
 本專案使用 **Sourcify** 提交合約驗證。
 
-### 驗證 AlphaToken
-
-```bash
-forge verify-contract 0xD71F27AE438F0978f16459780704699d79FD0f51 src/AlphaToken.sol:AlphaToken \
-  --chain-id 48898 \
-  --verifier sourcify \
-  --verifier-url https://sourcify.dev/server
-```
-
-### 驗證 BetaToken
-
-```bash
-forge verify-contract 0x538AfE4E65183eAD18c103371c62dc4707Bf3311 src/BetaToken.sol:BetaToken \
-  --chain-id 48898 \
-  --verifier sourcify \
-  --verifier-url https://sourcify.dev/server
-```
-
-### 驗證 TokenTrade
-
-先編碼 constructor 參數：
-
-```bash
-cast abi-encode "constructor(address,address)" \
-  0xD71F27AE438F0978f16459780704699d79FD0f51 \
-  0x538AfE4E65183eAD18c103371c62dc4707Bf3311
-```
-
-本次編碼結果：
-
-```bash
-0x000000000000000000000000d71f27ae438f0978f16459780704699d79fd0f51000000000000000000000000538afe4e65183ead18c103371c62dc4707bf3311
-```
-
-接著執行驗證：
-
-```bash
-forge verify-contract 0xFD4424266C0d80F47D4f7486281f09f573A65F1E src/TokenTrade.sol:TokenTrade \
-  --chain-id 48898 \
-  --verifier sourcify \
-  --verifier-url https://sourcify.dev/server \
-  --constructor-args 0x000000000000000000000000d71f27ae438f0978f16459780704699d79fd0f51000000000000000000000000538afe4e65183ead18c103371c62dc4707bf3311
-```
-
-### 驗證工作 ID
-
-* AlphaToken: `bd8fbbd0-71ef-436e-a0ff-ffbddf287b5a`
-* BetaToken: `f392ca31-af47-4915-a51f-a6ec6af97a5a`
-* TokenTrade: `885059a2-f590-41f7-8771-2a571c872f0a`
-
 ---
 
 ## 手續費機制說明
@@ -288,23 +238,6 @@ forge verify-contract 0xFD4424266C0d80F47D4f7486281f09f573A65F1E src/TokenTrade.
   * Bob 收到完整 `1000 ALPHA`
   * Alice 收到 `499.5 BETA`
   * 合約累積 `0.5 BETA` 作為 fee
-
----
-
-## 提交清單
-
-* [x] 三個合約地址
-
-  * AlphaToken: `0xD71F27AE438F0978f16459780704699d79FD0f51`
-  * BetaToken: `0x538AfE4E65183eAD18c103371c62dc4707Bf3311`
-  * TokenTrade: `0xFD4424266C0d80F47D4f7486281f09f573A65F1E`
-* [x] 三個交易哈希
-
-  * Alice sets up trade: `0x4fbdd1434056aa58ffc6569ac89827dd069dc5827a237f7098b4692fcae19c91`
-  * Bob settles trade: `0xed241b26c68c9c6f95963ed95c485f4ffc61e4ba2e1a0a2063f4b9bdc3ae84d2`
-  * Owner withdraw fee: `0x3b36ed9194f6e653ed8995c83f97f347782d17abe1490d237262f07a802aa454`
-* [x] Foundry 測試通過
-* [x] 合約已提交驗證
 
 ---
 
