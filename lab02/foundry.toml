@@ -1,0 +1,11 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.20"
+
+[rpc_endpoints]
+zircuit_testnet = "${ZIRCUIT_RPC_URL}"
+
+[etherscan]
+zircuit_testnet = { key = "${ETHERSCAN_API_KEY}", url = "https://explorer.garfield-testnet.zircuit.com/api" }
