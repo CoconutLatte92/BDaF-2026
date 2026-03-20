@@ -134,15 +134,3 @@ mapping(address => uint256) public nonces;
 
 簽名包含 `deadline`，合約驗證 `block.timestamp <= deadline`。過期的簽名即使 nonce 正確也無法執行，降低簽名外洩的風險窗口。
 
----
-
-## 🚀 部署資訊
-
-| 項目 | 內容 |
-|------|------|
-| 網路 | Zircuit Garfield Testnet |
-| 合約地址 | _(部署後填入)_ |
-| 驗證連結 | _(部署後填入)_ |
-| Alice 收到代幣 tx | _(部署後填入)_ |
-| Bob 提交 permit tx | _(部署後填入)_ |
-| Bob transferFrom tx | _(部署後填入)_ |
