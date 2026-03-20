@@ -1,10 +1,6 @@
 # 🪙 BDaF 2026 Lab03 — Signature-Based Token Approval
 
-> 實作簡化版 EIP-2612 簽名授權機制，讓代幣持有人可**離線簽署授權**，由第三方代為提交上鏈。
-
----
-
-## 📁 專案結構
+## 專案結構
 
 ```
 lab03/
@@ -21,7 +17,7 @@ lab03/
 
 ---
 
-## ⚡ 快速開始
+## 快速開始
 
 ```bash
 # 1. 安裝 OpenZeppelin 依賴
@@ -42,7 +38,7 @@ forge script script/Deploy.s.sol \
 
 ---
 
-## 📜 合約說明
+## 合約說明
 
 ### PermitToken（PMT）
 
@@ -79,7 +75,7 @@ mapping(address => uint256) public nonces;
 
 ---
 
-## 🧪 測試案例
+## 測試案例
 
 執行 `forge test -vv` 應全數通過：
 
@@ -96,41 +92,21 @@ mapping(address => uint256) public nonces;
 
 ---
 
-## 📝 Write-up
+## Write-up
 
 ### 1. Why are signatures useful in Ethereum applications?
 
-在 Ethereum 中，大部分操作都需要使用者親自送出交易並支付 gas。但簽名機制讓使用者可以**在鏈下（off-chain）對訊息進行數位簽名**，再由他人代為提交上鏈。
-
-這帶來幾個重要優點：
-
-- **無需持有 ETH 的使用者也能授權操作**：例如，只持有 ERC20 代幣但沒有 ETH 的用戶，可以簽署 permit 授權，由有 ETH 的第三方幫忙提交，實現「無 gas 費用體驗」（gasless transaction）。
-- **節省交易成本**：可將多步操作合併（approve + transferFrom → permit + transferFrom），減少鏈上交易數量。
-- **更好的用戶體驗**：DApp 可讓用戶只需簽名（MetaMask popup），無需等待鏈上確認，後端或 relayer 再統一上鏈。
+在 Ethereum 中，簽名機制讓使用者可以在off-chain時對訊息進行數位簽名，再由其他人代為提交上鏈。主要優點包括：無需持有 ETH 的使用者也能授權操作（gasless transaction）、減少鏈上交易數量節省成本，以及提供更好的用戶體驗（僅需簽名，無需等待鏈上確認）。
 
 ---
 
 ### 2. What is a replay attack?
 
-重放攻擊（Replay Attack）是指攻擊者**截取一個合法的簽名，並在不同時間或不同情境下重複使用**，達到非預期的效果。
-
-舉例來說，若 Alice 簽署了「授權 Bob 使用 500 PMT」的訊息，Bob 在執行一次後，如果合約沒有防護機制，Bob 可以再次提交同一份簽名來重複獲得授權。此外，若簽名內容未包含合約地址，同一份簽名可能在不同地址的同名合約上都有效，造成**跨合約重放**。
+重送攻擊是指攻擊者截取一個他人的簽名，並在不同時間或不同情境下重複使用，達到攻擊的效果。例如，Alice 簽署授權後，若合約無防護機制，任何人拿到這份簽名都可以無限重複執行授權，或在不同合約地址上重放同一份簽名（跨合約重放）。
 
 ---
 
 ### 3. How does your contract prevent replay attacks?
 
-本合約使用三種機制防止重放攻擊：
-
-**① Nonce（一次性使用計數器）**
-
-合約維護 `mapping(address => uint256) public nonces`。每次成功執行 `permit()` 後，`nonces[owner]++`。簽名內容包含 `nonce` 欄位，合約要求 `nonce == nonces[owner]`——一旦舊 nonce 的簽名被使用，再次提交相同簽名會因 nonce 不符而 revert，徹底防止重放。
-
-**② 合約地址綁定（address(this)）**
-
-簽名的 hash 中包含 `address(this)`，使簽名只對**這個特定合約**有效。即使相同邏輯的合約部署在不同地址，簽名也無法跨合約使用。
-
-**③ Deadline（有效期限）**
-
-簽名包含 `deadline`，合約驗證 `block.timestamp <= deadline`。過期的簽名即使 nonce 正確也無法執行，降低簽名外洩的風險窗口。
+本合約使用三種機制:首先在每次成功 permit 後 nonces[owner]++ ，舊簽名因 nonce 不同而 revert，再來是hash 包含 address(this)，使簽名只對此合約有效，避免跨合約重送，最後讓簽名包含有效期限，過期後即使 nonce 正確也無法執行。
 
