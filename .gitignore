@@ -3,4 +3,7 @@
 cache/
 out/
 broadcast/**/run-latest.json
-broadcast/**/dry-run/
+broadcast/**/dry-run/.env
+broadcast/
+cache/
+out/
