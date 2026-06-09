@@ -9,28 +9,37 @@
 
 ---
 
-## 🛠️ 編譯與測試方式
+## 🛠️ 如何編譯與執行測試
 
 ```bash
-# 1. 安裝 Foundry 依賴（forge-std + OpenZeppelin）
-forge install foundry-rs/forge-std
-forge install OpenZeppelin/openzeppelin-contracts
+# 1. Clone 專案（含 submodule）
+git clone --recurse-submodules https://github.com/CoconutLatte92/BDaF-2026.git
+cd BDaF-2026/lab04
 
-# 2. 安裝 npm 依賴（Merkle Tree 鏈下生成用）
+# 如果已經 clone 過但 lib/ 是空的，執行：
+git submodule update --init --recursive
+
+# 2. 安裝 npm 依賴（Merkle Tree 鏈下生成用，需要 Node.js）
 npm install
 
 # 3. 編譯合約
 forge build
 
-# 4. 執行測試（含 Gas 日誌輸出）
+# 4. 執行測試
 forge test -vv --ffi
-
-# 5. 生成 Gas Report 表格
-forge test --gas-report --ffi
 ```
 
-> ⚠️ 測試需加上 `--ffi` 參數，因為 Merkle Proof 是透過 FFI 呼叫 `node script/merkle.js` 在鏈下生成的。
-> 請確保已安裝 Node.js 並執行過 `npm install`。
+### 環境需求
+
+- **Foundry**（forge, cast）
+- **Node.js**（v18 以上）及 **npm**
+- `--ffi` 參數為必要，因為 Merkle Proof 透過 FFI 呼叫 `node script/merkle.js` 在鏈下生成
+
+### 快速驗證（一行指令）
+
+```bash
+git submodule update --init --recursive && npm install && forge test -vv --ffi
+```
 
 ---
 
@@ -119,12 +128,12 @@ lab04/
 ├── src/
 │   └── MembershipBoard.sol      # 主合約（5 個函式，含完整中文註解）
 ├── test/
-│   └── MembershipBoard.t.sol    # Foundry 測試套件 + Gas 分析
+│   └── MembershipBoard.t.sol    # Foundry 測試套件 + Gas 分析（23 個測試）
 ├── script/
 │   └── merkle.js                # 鏈下 Merkle Tree 生成腳本（FFI 呼叫用）
 ├── members.json                 # 1,000 個預先生成的地址
 ├── generate_members.js          # 地址生成腳本
-├── foundry.toml                 # Foundry 設定檔
+├── foundry.toml                 # Foundry 設定檔（含 ffi=true, fs_permissions）
 ├── remappings.txt               # 依賴路徑映射
 ├── package.json                 # npm 依賴設定
 └── README.md
